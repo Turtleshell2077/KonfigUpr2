@@ -1,0 +1,3 @@
+# Not valid YAML: the bracket is never closed
+package: [org.slf4j:slf4j-api
+repository: https://repo1.maven.org/maven2/

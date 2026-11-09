@@ -1,0 +1,7 @@
+# In test mode packages are named with capital letters only
+package: a1
+repository: examples/test_repo.txt
+test_mode: true
+version: 1.0
+output: graph.png
+filter: ""

@@ -1,0 +1,7 @@
+# Test repository: packages are named with capital letters
+package: A
+repository: examples/test_repo.txt
+test_mode: true
+version: 1.0
+output: test_graph.png
+filter: D

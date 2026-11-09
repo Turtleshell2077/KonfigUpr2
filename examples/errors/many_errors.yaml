@@ -1,0 +1,8 @@
+# Several mistakes at once: all of them are shown
+package: guava
+repository: ftp://repo1.maven.org/maven2/
+test_mode: false
+version: 33 beta
+output: no_such_folder/graph.png
+filter: [a, b]
+color: red

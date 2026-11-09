@@ -1,0 +1,7 @@
+# Config by default (used when --config is not given)
+package: org.apache.commons:commons-text
+repository: https://repo1.maven.org/maven2/
+test_mode: false
+version: 1.12.0
+output: graph.png
+filter: ""

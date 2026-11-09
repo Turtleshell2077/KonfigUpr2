@@ -1,0 +1,7 @@
+# The image file name is the name of a folder
+package: org.slf4j:slf4j-api
+repository: https://repo1.maven.org/maven2/
+test_mode: false
+version: 2.0.16
+output: examples
+filter: ""

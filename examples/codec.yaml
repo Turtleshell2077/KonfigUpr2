@@ -1,0 +1,7 @@
+# Version 1.10 without quotes stays "1.10" (it is not read as the number 1.1)
+package: commons-codec:commons-codec
+repository: https://repo1.maven.org/maven2/
+test_mode: false
+version: 1.10
+output: codec.png
+filter:

@@ -1,0 +1,7 @@
+# The test repository file does not exist
+package: A
+repository: examples/no_such_repo.txt
+test_mode: true
+version: 1.0
+output: graph.png
+filter: ""

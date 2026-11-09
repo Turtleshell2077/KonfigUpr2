@@ -1,0 +1,7 @@
+# Real repository (Maven Central) with a filter
+package: com.google.guava:guava
+repository: https://repo1.maven.org/maven2/
+test_mode: false
+version: 33.3.1-jre
+output: examples/guava.png
+filter: annotations
