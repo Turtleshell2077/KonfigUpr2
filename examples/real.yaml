@@ -1,4 +1,4 @@
-# Real repository (Maven Central) with a filter
+# Versions of four dependencies come from the parent POM (guava-parent)
 package: com.google.guava:guava
 repository: https://repo1.maven.org/maven2/
 test_mode: false

@@ -179,17 +179,3 @@ def load_settings(path):
     settings = {key: data[key] for key in KEYS}
     settings["test_mode"] = parse_bool(data["test_mode"])
     return settings
-
-
-def show_value(value):
-    """Значение параметра в том виде, как его пишут в YAML."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if value == "":
-        return '""'
-    return str(value)
-
-
-def settings_lines(settings):
-    """Строки «ключ: значение» для вывода всех параметров."""
-    return [f"{key}: {show_value(settings[key])}" for key in KEYS]

@@ -1,0 +1,7 @@
+# The package exists, but there is no such version
+package: org.apache.commons:commons-text
+repository: https://repo1.maven.org/maven2/
+test_mode: false
+version: 0.0.1
+output: graph.png
+filter: ""

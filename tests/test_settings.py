@@ -7,7 +7,7 @@ import unittest
 
 import yaml
 
-from settings import ConfigError, load_settings, settings_lines
+from settings import ConfigError, load_settings
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TEST_REPO = str(ROOT / "examples" / "test_repo.txt")
@@ -98,15 +98,6 @@ class GoodConfigTest(ConfigTestCase):
             with self.subTest(line=line):
                 text = f"{TEXT}test_mode: false\nversion: 1.0\n{line}\n"
                 self.assertEqual(self.load_text(text)["filter"], "")
-
-    def test_settings_lines(self):
-        """Все параметры печатаются в виде «ключ: значение»."""
-        self.assertEqual(settings_lines(self.load(TEST)), [
-            "package: A", f"repository: {TEST_REPO}", "test_mode: true",
-            "version: 1.0", "output: graph.png", 'filter: ""'])
-        lines = settings_lines(self.load({**REAL, "filter": "api"}))
-        self.assertIn("test_mode: false", lines)
-        self.assertIn("filter: api", lines)
 
 
 class FileErrorTest(ConfigTestCase):
@@ -249,6 +240,14 @@ class ExamplesTest(unittest.TestCase):
         paths = ["config.yaml", *sorted(ROOT.glob("examples/*.yaml"))]
         for path in paths:
             with self.subTest(path=path):
+                self.assertIn("package", load_settings(str(path)))
+
+    def test_repository_error_examples(self):
+        """В examples/repo_errors/ конфиги верные: ошибка будет в сети."""
+        paths = sorted(ROOT.glob("examples/repo_errors/*.yaml"))
+        self.assertTrue(paths)
+        for path in paths:
+            with self.subTest(path=path.name):
                 self.assertIn("package", load_settings(str(path)))
 
     def test_error_examples(self):

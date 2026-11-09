@@ -1,5 +1,5 @@
 @echo off
-rem Stage 1: errors in the config, one case for every parameter (exit code 1)
+rem Errors in the config file, one case for every parameter (exit code 1)
 cd /d "%~dp0.."
 
 echo.
