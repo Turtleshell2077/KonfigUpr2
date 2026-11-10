@@ -274,16 +274,52 @@ class DownloadTest(unittest.TestCase):
                          "no network")
 
 
+class GraphDependenciesTest(FakeRepositoryTestCase):
+    """Зависимости для графа: только те, что Maven подтягивает."""
+
+    def test_only_transitive(self):
+        """compile и runtime попадают в граф; test, provided, optional — нет."""
+        self.add("a.b:app:1.0", pom(deps(
+            dep("x.y:core:1"), dep("x.y:driver:2", scope="runtime"),
+            dep("x.y:junit:3", scope="test"),
+            dep("x.y:servlet:4", scope="provided"),
+            dep("x.y:extra:5", optional="true"))))
+        self.assertEqual(self.repository.dependencies("a.b:app:1.0"),
+                         ["x.y:core:1", "x.y:driver:2"])
+
+    def test_unknown_version(self):
+        """Пакет с неизвестной версией нельзя скачать."""
+        for node in ("x.y:lib:?", "x.y:lib:${lib.version}"):
+            with self.subTest(node=node):
+                with self.assertRaises(RepositoryError) as caught:
+                    self.repository.dependencies(node)
+                self.assertIn("the version of x.y:lib is unknown",
+                              str(caught.exception))
+        self.assertEqual(self.calls, [])
+
+
 class DependencyTest(unittest.TestCase):
-    """Строковый вид зависимости."""
+    """Строковый вид зависимости и вершина графа."""
 
     def test_str(self):
         """groupId:artifactId:версия (scope[, optional])."""
         item = Dependency("x.y", "lib", "1.0")
         self.assertEqual(item.name, "x.y:lib")
+        self.assertEqual(item.node, "x.y:lib:1.0")
         self.assertEqual(str(item), "x.y:lib:1.0 (compile)")
         item = Dependency("x.y", "lib", None, "runtime", True)
+        self.assertEqual(item.node, "x.y:lib:?")
         self.assertEqual(str(item), "x.y:lib:? (runtime, optional)")
+
+    def test_is_transitive(self):
+        """Транзитивны только compile и runtime без optional."""
+        for scope, optional, expected in (
+                ("compile", False, True), ("runtime", False, True),
+                ("test", False, False), ("provided", False, False),
+                ("system", False, False), ("compile", True, False)):
+            with self.subTest(scope=scope, optional=optional):
+                item = Dependency("x.y", "lib", "1", scope, optional)
+                self.assertIs(item.is_transitive, expected)
 
 
 if __name__ == "__main__":

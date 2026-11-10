@@ -1,0 +1,7 @@
+# Wrong name in the test repository file (error)
+package: A
+repository: examples/test_repos/bad_name.txt
+test_mode: true
+version: 1.0
+output: test_graph.png
+filter: ""

@@ -1,11 +1,11 @@
 # Визуализатор графа зависимостей Maven-пакетов (вариант 14)
 
 Практическая работа № 2 по дисциплине «Конфигурационное управление» (РТУ МИРЭА, ИКБО-10-25).
-Готовы этапы 1 (минимальный прототип с конфигурацией) и 2 (сбор данных).
+Готовы этапы 1 (минимальный прототип с конфигурацией), 2 (сбор данных) и 3 (основные операции).
 
 ## 1. Общее описание
 
-Консольная программа на Python. В итоге она будет строить граф зависимостей пакета Maven (Java) и рисовать его.
+Консольная программа на Python. Она строит граф зависимостей пакета Maven (Java), а в итоге будет его рисовать.
 Готовые менеджеры пакетов и библиотеки для получения зависимостей не используются: описание пакета скачивается
 стандартным модулем `urllib` и разбирается стандартным модулем `xml.etree`.
 
@@ -15,13 +15,18 @@
   (`--config`), по умолчанию это `config.yaml` в текущей папке.
 - Настроек шесть: имя пакета, URL репозитория (или путь к файлу тестового репозитория), режим работы
   с тестовым репозиторием, версия пакета, имя файла с картинкой графа и подстрока для фильтрации пакетов.
-- Каждая настройка проверяется. Если есть ошибки, программа печатает их все сразу и завершается с кодом 1.
-- Программа скачивает из репозитория Maven описание пакета (POM-файл) заданной версии и печатает все его прямые
-  зависимости.
+  Каждая настройка проверяется; если есть ошибки, программа печатает их все сразу и завершается с кодом 1.
+- Программа скачивает из репозитория Maven описание пакета (POM-файл) заданной версии и находит его прямые
+  зависимости (этап 2).
+- По прямым зависимостям строится граф зависимостей с учётом транзитивности: зависимости зависимостей и так
+  далее. Граф обходится в глубину (DFS) с рекурсией (этап 3).
+- Пакеты, имя которых содержит подстроку из `filter`, не учитываются.
+- Циклические зависимости обрабатываются: каждый пакет посещается один раз, а найденные циклы печатаются.
+- Режим тестирования: вместо настоящего репозитория можно указать файл с описанием графа, где пакеты называются
+  большими латинскими буквами.
 
-Вывод всех настроек в виде `ключ: значение` был нужен только на этапе 1, поэтому с этапа 2 его нет. Файл с
-картинкой и фильтр пока не используются: они понадобятся на следующих этапах. Режим тестового репозитория тоже
-появится позже (этап 3): сейчас при `test_mode: true` программа сообщает, что он ещё не поддерживается.
+Вывод всех настроек был нужен только на этапе 1, а вывод прямых зависимостей — только на этапе 2, поэтому сейчас
+программа печатает граф. Файл с картинкой (`output`) пока не создаётся: он понадобится на этапе 5.
 
 ## 2. Описание функций и настроек
 
@@ -41,7 +46,7 @@
 | `package` | Имя анализируемого пакета |
 | `repository` | URL репозитория или путь к файлу тестового репозитория |
 | `test_mode` | Режим работы с тестовым репозиторием (`true` / `false`) |
-| `version` | Версия пакета |
+| `version` | Версия пакета (в тестовом режиме не используется, у пакетов-букв версий нет) |
 | `output` | Имя сгенерированного файла с изображением графа |
 | `filter` | Подстрока для фильтрации пакетов (может быть пустой — тогда фильтра нет) |
 
@@ -74,10 +79,7 @@ filter: ""
   (обычный YAML прочитал бы это как число `1.1`).
 - Относительные пути (`repository` в тестовом режиме, `output`) считаются от текущей папки.
 
-Файл тестового репозитория — `examples/test_repo.txt`. Пока проверяется только, что он есть. Читать его
-программа будет с этапа 3: в каждой строке пакет и через двоеточие его зависимости, например `A: B C`.
-
-### Как программа получает прямые зависимости
+### Как программа получает прямые зависимости пакета Maven
 
 В репозитории Maven описание каждой версии пакета лежит в POM-файле (XML). Его адрес строится из имени и версии:
 
@@ -99,20 +101,101 @@ https://repo1.maven.org/maven2/org/apache/commons/commons-text/1.12.0/commons-te
 4. **Импорт BOM.** Правило с `<type>pom</type>` и `<scope>import</scope>` — это BOM: программа скачивает его
    и добавляет его правила. Правила, записанные прямо, важнее импортированных.
 
-Каждый POM-файл скачивается один раз. Если версию узнать неоткуда, вместо неё печатается `?`.
+Каждый POM-файл скачивается один раз (скачанные файлы хранятся в памяти). Программа выходит в интернет через
+`urllib`; если заданы переменные окружения `http_proxy` / `https_proxy`, запросы идут через прокси.
 
-Выводятся все прямые зависимости пакета, в том числе тестовые. У каждой в скобках указан `scope`
-(`compile`, `runtime`, `test`, `provided`, ...), если не указан — `compile`. Для необязательных зависимостей
-(`<optional>true</optional>`) добавляется `optional`:
+### Как строится граф (этап 3)
+
+Вершина графа — пакет: в обычном режиме `groupId:artifactId:версия`, в тестовом — имя из букв. Ребро `X -> Y`
+значит, что пакет X зависит от пакета Y.
+
+**Какие зависимости Maven попадают в граф.** Только те, которые Maven действительно подтягивает вместе
+с пакетом: со `scope` `compile` или `runtime` и без `<optional>true</optional>`. Зависимости `test` и `provided`
+нужны только при сборке самого пакета, а `optional` нужно подключать явно, поэтому в граф они не попадают.
+Например, у commons-text 12 прямых зависимостей, но 11 из них тестовые, поэтому в графе у него одна
+зависимость — `commons-lang3`.
+
+**Обход в глубину (DFS) с рекурсией.** Функция `visit(пакет)`:
+
+1. добавляет пакет в граф и в текущий путь (путь — это цепочка пакетов от начального до текущего);
+2. получает зависимости пакета из репозитория и убирает те, имя которых содержит подстроку фильтра;
+3. для каждой зависимости добавляет ребро и:
+   - если зависимость уже есть **на текущем пути** — найден цикл, дальше по ней не идём;
+   - если зависимость уже **посещена раньше** (через другую ветку) — второй раз не идём;
+   - иначе рекурсивно вызывает `visit(зависимость)`;
+4. убирает пакет из текущего пути.
+
+Так каждый пакет обрабатывается один раз, даже если от него зависят несколько пакетов (например, «ромб»
+A → B → D, A → C → D), а циклы (A → B → C → A, A → A) не приводят к бесконечному обходу.
+
+**Фильтр.** Подстрока ищется в имени пакета: в обычном режиме это `groupId:artifactId` без версии, в тестовом —
+имя из букв. Отфильтрованный пакет не попадает в граф, и его зависимости тоже не анализируются (если до них нельзя
+дойти другим путём). Сам анализируемый пакет фильтр не убирает. Регистр букв важен.
+
+**Если зависимость получить не удалось** (нет POM-файла в репозитории, неизвестная версия, нет пакета в тестовом
+файле), пакет остаётся в графе без зависимостей, а в конце печатается предупреждение (`Warning: ...`). Если не
+удалось получить сам анализируемый пакет — это ошибка.
+
+**Глубина.** Рекурсия в Python ограничена (около 1000 вызовов), поэтому граф глубже примерно 1000 уровней
+построить нельзя: программа сообщает об этом и завершается с кодом 1. У настоящих пакетов глубина намного меньше.
+
+Пакет Maven может встретиться в графе в разных версиях (две зависимости просят разные версии одного пакета).
+Тогда это разные вершины: программа показывает версии, записанные в POM-файлах. Сам Maven при сборке выбрал бы
+одну версию.
+
+### Тестовый репозиторий
+
+Текстовый файл: в каждой строке пакет, двоеточие и его зависимости через пробел. Пакет без зависимостей пишется
+как `D:`. Пустые строки и строки, которые начинаются с `#`, пропускаются. Повтор зависимости в строке
+записывается один раз.
 
 ```
-Direct dependencies of org.apache.commons:commons-text:1.12.0:
-  org.apache.commons:commons-lang3:3.14.0 (compile)
-  org.junit.jupiter:junit-jupiter:5.10.2 (test)
+# Diamond: B and C both depend on D, D is visited only once
+A: B C
+B: D
+C: D E
+D:
+E:
 ```
 
-Программа выходит в интернет через `urllib`; если заданы переменные окружения `http_proxy` / `https_proxy`,
-запросы идут через прокси.
+Ошибки в файле: строка без двоеточия, имя не из больших латинских букв, пакет описан два раза. В сообщении
+указан номер строки. Пакет, который упомянут как зависимость, но не описан, даёт предупреждение (как пакет,
+которого нет в настоящем репозитории).
+
+Примеры файлов в `examples/test_repos/` и конфиги к ним в `examples/test_mode/`:
+
+| Конфиг | Файл | Что показывает |
+|---|---|---|
+| `simple.yaml` | `simple.txt` | «Ромб»: D — общая зависимость B и C, посещается один раз |
+| `filter.yaml` | `simple.txt` | Фильтр `D`: пакет D не анализируется |
+| `cycle.yaml` | `cycle.txt` | Цикл из трёх пакетов A → B → C → A |
+| `cycle_filter.yaml` | `cycle.txt` | Фильтр `C` разрывает цикл |
+| `self_loop.yaml` | `self_loop.txt` | Пакет зависит сам от себя (A → A) |
+| `complex.yaml` | `complex.txt` | Два цикла, общие пакеты; пакет H недостижим из A и в граф не попадает |
+| `complex_from_d.yaml` | `complex.txt` | Тот же граф, но анализ начинается с пакета D |
+| `missing.yaml` | `missing.txt` | Зависимость X не описана в файле: предупреждение, граф строится |
+| `no_root.yaml` | `simple.txt` | Пакета Z нет в файле: ошибка |
+| `bad_name.yaml` | `bad_name.txt` | Имя `c` не из больших букв: ошибка с номером строки |
+| `bad_line.yaml` | `bad_line.txt` | Строка без двоеточия: ошибка с номером строки |
+
+### Вывод
+
+Пакеты пронумерованы в порядке обхода в глубину, под каждым — его зависимости (рёбра графа). Дальше идут
+число пакетов и рёбер, отфильтрованные пакеты (если есть) и найденные циклы:
+
+```
+Dependency graph of A:
+  1. A
+       -> B
+  2. B
+       -> C
+  3. C
+       -> A
+       -> D
+  4. D
+Packages: 4, dependencies: 4
+Cycle: A -> B -> C -> A
+```
 
 ### Ошибки
 
@@ -134,12 +217,15 @@ Direct dependencies of org.apache.commons:commons-text:1.12.0:
 | Режим не `true`/`false` | `test_mode: '...': must be true or false` | 1 |
 | Неверные символы в версии | `version: '...' is not a valid version` | 1 |
 | Имя картинки — это папка, или нет папки для файла | `output: '...' is a folder`, `... does not exist` | 1 |
-| Нет такого пакета или версии в репозитории (или родителя, BOM) | `Repository error: not found: адрес` | 1 |
+| Нет анализируемого пакета или его версии в репозитории | `Repository error: not found: адрес` | 1 |
 | Сервер не отвечает, нет сети | `Repository error: cannot download адрес: причина` | 1 |
 | Сервер вернул другую ошибку HTTP | `Repository error: HTTP error код: адрес` | 1 |
 | Скачанный файл не XML или не POM | `Repository error: invalid XML in ...`, `not a POM file ...` | 1 |
 | Родительские POM ссылаются друг на друга, неполный `<parent>` | `Repository error: parent POMs form a cycle ...` | 1 |
-| Включён тестовый режим | `Error: the test repository mode is not supported yet` | 1 |
+| Нет анализируемого пакета в тестовом файле | `Repository error: package 'Z' not found in '...'` | 1 |
+| Ошибка в тестовом файле | `Repository error: 'файл', line N: ...` | 1 |
+| Граф слишком глубокий для рекурсии | `Error: the dependency graph is too deep for recursive DFS` | 1 |
+| Нет зависимостей одного из пакетов графа (граф печатается) | `Warning: cannot get dependencies of ...` | 0 |
 | Неизвестный параметр командной строки | `usage: ...` и описание ошибки | 2 |
 
 Если режим `test_mode` указан неверно (или его нет), имя пакета и репозиторий не проверяются: без режима
@@ -166,12 +252,14 @@ Direct dependencies of org.apache.commons:commons-text:1.12.0:
 | `find_errors(data)` | Проверяет все заданные параметры и собирает список ошибок |
 | `load_settings(path)` | Читает и проверяет конфиг, возвращает словарь настроек или бросает `ConfigError` |
 
-`src/maven.py` — получение прямых зависимостей из репозитория Maven:
+`src/maven.py` — получение зависимостей из репозитория Maven:
 
 | Функция | Что делает |
 |---|---|
-| `RepositoryError` | Исключение: не удалось скачать или разобрать POM-файл |
-| `Dependency` | Зависимость: `group`, `artifact`, `version`, `scope`, `optional`; `name` — это `groupId:artifactId` |
+| `RepositoryError` | Исключение: не удалось получить данные из репозитория |
+| `Dependency` | Зависимость: `group`, `artifact`, `version`, `scope`, `optional` |
+| `Dependency.name`, `Dependency.node` | Имя `groupId:artifactId` и вершина графа `groupId:artifactId:версия` |
+| `Dependency.is_transitive` | Попадает ли зависимость в граф: `compile` или `runtime`, не `optional` |
 | `download(url)` | Скачивает файл (`urllib`); 404 — `not found`, другие ошибки — `RepositoryError` |
 | `parse_pom(data, url)` | Разбирает XML, убирает пространство имён Maven, проверяет, что это `<project>` |
 | `child_text(element, tag)` | Текст дочернего элемента или `None` |
@@ -191,7 +279,32 @@ Direct dependencies of org.apache.commons:commons-text:1.12.0:
 | `MavenRepository.pom_chain(group, artifact, version)` | POM пакета и всех его родителей; ловит циклы |
 | `MavenRepository.model(package_id, seen)` | Свойства, правила и зависимости с учётом родителей |
 | `MavenRepository.managed_versions(managed, seen)` | Правила `dependencyManagement` вместе с импортированными BOM |
-| `MavenRepository.direct_dependencies(group, artifact, version)` | Список прямых зависимостей пакета |
+| `MavenRepository.direct_dependencies(group, artifact, version)` | Список всех прямых зависимостей пакета |
+| `MavenRepository.dependencies(node)` | Зависимости для графа (только транзитивные) в виде вершин |
+
+`src/local_repo.py` — тестовый репозиторий:
+
+| Функция | Что делает |
+|---|---|
+| `TestRepository(path, packages)` | Тестовый репозиторий: `{пакет: [зависимости]}` |
+| `TestRepository.load(path)` | Читает файл тестового репозитория |
+| `TestRepository.dependencies(node)` | Зависимости пакета; если пакета нет в файле — `RepositoryError` |
+| `parse_line(text, where)` | Разбирает строку `A: B C` в `("A", ["B", "C"])` |
+| `parse_lines(lines, path)` | Разбирает все строки файла, пропускает пустые и комментарии |
+
+`src/graph.py` — граф зависимостей:
+
+| Функция | Что делает |
+|---|---|
+| `package_name(node)` | Имя пакета без версии: `g:a:1.0` → `g:a`, `A` → `A` |
+| `Graph` | Результат обхода: `edges` (рёбра в порядке обхода), `cycles`, `skipped`, `errors` |
+| `Graph.edge_count()` | Число рёбер |
+| `GraphBuilder(repository, text_filter)` | Построитель графа для любого репозитория с методом `dependencies` |
+| `GraphBuilder.build(root)` | Строит граф от пакета `root` |
+| `GraphBuilder.is_skipped(node)` | Имя пакета содержит подстроку фильтра |
+| `GraphBuilder.children(node)` | Зависимости пакета без отфильтрованных; ошибки зависимостей запоминает |
+| `GraphBuilder.visit(node)` | Рекурсивный обход в глубину (DFS), поиск циклов |
+| `graph_lines(graph)` | Строки для вывода графа |
 
 `src/main.py` — точка входа:
 
@@ -199,13 +312,14 @@ Direct dependencies of org.apache.commons:commons-text:1.12.0:
 |---|---|
 | `parse_args(argv)` | Разбирает командную строку (только `--config`) |
 | `print_config_errors(error)` | Печатает все ошибки конфига в stderr |
-| `print_dependencies(settings)` | Скачивает описание пакета и печатает его прямые зависимости |
+| `open_repository(settings)` | Настоящий или тестовый репозиторий и начальный пакет графа |
+| `print_graph(settings)` | Строит граф и печатает его, затем предупреждения |
 | `main(argv)` | Точка входа; возвращает код завершения |
 
 ## 3. Сборка, запуск и тесты
 
 Нужен Python 3.9 или новее и библиотека PyYAML для чтения YAML. Сборка не требуется. Для работы с настоящим
-репозиторием нужен интернет.
+репозиторием нужен интернет, для тестового режима — нет.
 
 ```
 pip install -r requirements.txt
@@ -215,7 +329,7 @@ pip install -r requirements.txt
 
 ```
 .\run.bat
-.\run.bat --config examples/real.yaml
+.\run.bat --config examples/test_mode/complex.yaml
 ```
 
 Запуск на Linux/macOS: `sh run.sh [параметры]`. Или напрямую: `python src/main.py [параметры]`.
@@ -231,105 +345,136 @@ python -m unittest -v
 
 | Скрипт | Что проверяет |
 |---|---|
-| `test_dependencies.bat` | Этап 2: прямые зависимости четырёх пакетов, ошибки репозитория, тестовый режим, `--help` |
+| `test_test_repo.bat` | Этап 3: все случаи тестового репозитория (перед каждым печатается файл графа) |
+| `test_real_repo.bat` | Этап 3: графы пяти настоящих пакетов из Maven Central, ошибки репозитория |
 | `test_errors.bat` | Ошибки в конфиге для каждого параметра (`examples/errors/`), нет файла, неизвестный параметр |
 
 ```
-.\scripts\test_dependencies.bat
+.\scripts\test_test_repo.bat
+.\scripts\test_real_repo.bat
 .\scripts\test_errors.bat
 ```
 
-Примеры конфигов:
+Примеры конфигов для настоящего репозитория:
 
 | Файл | Что в нём |
 |---|---|
-| `config.yaml` | Конфиг по умолчанию: `commons-text 1.12.0` из Maven Central |
-| `examples/real.yaml` | `guava 33.3.1-jre`: версии части зависимостей берутся из родительского POM, есть фильтр |
+| `config.yaml` | Конфиг по умолчанию: `commons-text 1.12.0` |
+| `examples/spring.yaml` | `spring-context 6.1.12`: несколько уровней транзитивных зависимостей |
+| `examples/real.yaml` | `guava 33.3.1-jre` с фильтром `annotations` |
 | `examples/jackson.yaml` | `jackson-databind 2.17.2`: версии из свойств родителей и из импортированного BOM |
-| `examples/codec.yaml` | `commons-codec 1.10`: версия `1.10` без кавычек и пустой фильтр |
-| `examples/test_mode.yaml` | Тестовый режим: пакет `A`, файл `examples/test_repo.txt` (заработает на этапе 3) |
+| `examples/codec.yaml` | `commons-codec 1.10`: версия `1.10` без кавычек, в графе нет зависимостей |
 | `examples/errors/*.yaml` | Ошибки в конфиге: по одной на каждый параметр и `many_errors.yaml` с несколькими сразу |
 | `examples/repo_errors/*.yaml` | Верные конфиги, но ошибка в репозитории: нет пакета, нет версии, нет сервера |
 
 ## 4. Примеры использования
 
-Конфиг по умолчанию (`.\run.bat`), commons-text 1.12.0:
+Транзитивные зависимости spring-context 6.1.12 (`.\run.bat --config examples/spring.yaml`). Пакет spring-core
+нужен четырём пакетам, но посещается один раз (номер 4):
 
 ```
-Direct dependencies of org.apache.commons:commons-text:1.12.0:
-  org.apache.commons:commons-lang3:3.14.0 (compile)
-  org.junit.jupiter:junit-jupiter:5.10.2 (test)
-  net.bytebuddy:byte-buddy:1.14.13 (test)
-  net.bytebuddy:byte-buddy-agent:1.14.13 (test)
-  org.assertj:assertj-core:3.25.3 (test)
-  commons-io:commons-io:2.16.1 (test)
-  org.mockito:mockito-inline:4.11.0 (test)
-  org.graalvm.js:js:22.0.0.2 (test)
-  org.graalvm.js:js-scriptengine:22.0.0.2 (test)
-  org.apache.commons:commons-rng-simple:1.5 (test)
-  org.openjdk.jmh:jmh-core:1.37 (test)
-  org.openjdk.jmh:jmh-generator-annprocess:1.37 (test)
+Dependency graph of org.springframework:spring-context:6.1.12:
+  1. org.springframework:spring-context:6.1.12
+       -> org.springframework:spring-aop:6.1.12
+       -> org.springframework:spring-beans:6.1.12
+       -> org.springframework:spring-core:6.1.12
+       -> org.springframework:spring-expression:6.1.12
+       -> io.micrometer:micrometer-observation:1.12.9
+  2. org.springframework:spring-aop:6.1.12
+       -> org.springframework:spring-beans:6.1.12
+       -> org.springframework:spring-core:6.1.12
+  3. org.springframework:spring-beans:6.1.12
+       -> org.springframework:spring-core:6.1.12
+  4. org.springframework:spring-core:6.1.12
+       -> org.springframework:spring-jcl:6.1.12
+  5. org.springframework:spring-jcl:6.1.12
+  6. org.springframework:spring-expression:6.1.12
+       -> org.springframework:spring-core:6.1.12
+  7. io.micrometer:micrometer-observation:1.12.9
+       -> io.micrometer:micrometer-commons:1.12.9
+  8. io.micrometer:micrometer-commons:1.12.9
+Packages: 8, dependencies: 11
+Cycles: none
 ```
 
-Версия `junit-jupiter` не написана в POM пакета: она взята из BOM `junit-bom 5.10.2`, который импортирует
-родительский POM `commons-parent 69`. Версия `byte-buddy` записана через свойство `${commons.bytebuddy.version}`.
-
-guava 33.3.1-jre (`.\run.bat --config examples/real.yaml`): у `jsr305`, `checker-qual`, `error_prone_annotations`
-и `j2objc-annotations` в POM пакета нет версий, они взяты из `dependencyManagement` родительского POM `guava-parent`:
+guava с фильтром `annotations` (`.\run.bat --config examples/real.yaml`):
 
 ```
-Direct dependencies of com.google.guava:guava:33.3.1-jre:
-  com.google.guava:failureaccess:1.0.2 (compile)
-  com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava (compile)
-  com.google.code.findbugs:jsr305:3.0.2 (compile)
-  org.checkerframework:checker-qual:3.43.0 (compile)
-  com.google.errorprone:error_prone_annotations:2.28.0 (compile)
-  com.google.j2objc:j2objc-annotations:3.0.0 (compile)
+Dependency graph of com.google.guava:guava:33.3.1-jre:
+  1. com.google.guava:guava:33.3.1-jre
+       -> com.google.guava:failureaccess:1.0.2
+       -> com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava
+       -> com.google.code.findbugs:jsr305:3.0.2
+       -> org.checkerframework:checker-qual:3.43.0
+  2. com.google.guava:failureaccess:1.0.2
+  3. com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava
+  4. com.google.code.findbugs:jsr305:3.0.2
+  5. org.checkerframework:checker-qual:3.43.0
+Packages: 5, dependencies: 4
+Skipped by filter 'annotations':
+  com.google.errorprone:error_prone_annotations:2.28.0
+  com.google.j2objc:j2objc-annotations:3.0.0
+Cycles: none
 ```
 
-jackson-databind 2.17.2 (`.\run.bat --config examples/jackson.yaml`): версии `jackson-core` и
-`jackson-annotations` записаны через свойства из родительских POM, версии `junit-jupiter` и `junit-vintage-engine` —
-из BOM `junit-bom`, который импортирует родитель `jackson-base`, а `junit` унаследован от `jackson-base`
-(поэтому он идёт последним):
+Тестовый репозиторий с двумя циклами (`.\run.bat --config examples/test_mode/complex.yaml`, файл
+`examples/test_repos/complex.txt`). Пакет H недостижим из A, поэтому его нет в графе:
 
 ```
-Direct dependencies of com.fasterxml.jackson.core:jackson-databind:2.17.2:
-  com.fasterxml.jackson.core:jackson-annotations:2.17.2 (compile)
-  com.fasterxml.jackson.core:jackson-core:2.17.2 (compile)
-  org.junit.vintage:junit-vintage-engine:5.10.2 (test)
-  org.junit.jupiter:junit-jupiter:5.10.2 (test)
-  org.assertj:assertj-core:3.24.2 (test)
-  com.google.guava:guava-testlib:31.1-jre (test)
-  javax.measure:jsr-275:0.9.1 (test)
-  org.openjdk.jol:jol-core:0.16 (test)
-  org.mockito:mockito-core:4.11.0 (test)
-  org.mockito:mockito-inline:4.11.0 (test)
-  net.bytebuddy:byte-buddy:1.14.13 (test)
-  junit:junit:4.13.2 (test)
+Dependency graph of A:
+  1. A
+       -> B
+       -> C
+  2. B
+       -> D
+  3. D
+       -> B
+       -> F
+  4. F
+       -> G
+  5. G
+       -> E
+  6. E
+       -> F
+  7. C
+       -> D
+       -> E
+Packages: 7, dependencies: 10
+Cycle: B -> D -> B
+Cycle: F -> G -> E -> F
 ```
 
-Нет такой версии (`.\run.bat --config examples/repo_errors/version_not_found.yaml`), код завершения 1:
+Фильтр разрывает цикл (`.\run.bat --config examples/test_mode/cycle_filter.yaml`, цикл A → B → C → A, фильтр `C`):
 
 ```
-Repository error: not found: https://repo1.maven.org/maven2/org/apache/commons/commons-text/0.0.1/...
+Dependency graph of A:
+  1. A
+       -> B
+  2. B
+Packages: 2, dependencies: 1
+Skipped by filter 'C':
+  C
+Cycles: none
 ```
 
-Нет такого сервера (`.\run.bat --config examples/repo_errors/bad_host.yaml`), код завершения 1:
+Зависимость не описана в тестовом файле (`.\run.bat --config examples/test_mode/missing.yaml`), код завершения 0:
 
 ```
-Repository error: cannot download https://no-such-host.invalid/maven2/org/apache/commons/commons-text/1.12.0/...
+Dependency graph of A:
+  1. A
+       -> B
+       -> X
+  2. B
+  3. X
+Packages: 3, dependencies: 2
+Cycles: none
+Warning: cannot get dependencies of X: package 'X' not found in 'examples/test_repos/missing.txt'
 ```
 
-Ошибка в конфиге (`.\run.bat --config examples/errors/many_errors.yaml`), код завершения 1:
+Ошибка в тестовом файле (`.\run.bat --config examples/test_mode/bad_name.yaml`), код завершения 1:
 
 ```
-Config error in 'examples/errors/many_errors.yaml':
-  unknown key 'color'
-  package: 'guava': must look like groupId:artifactId (e.g. org.slf4j:slf4j-api)
-  repository: 'ftp://repo1.maven.org/maven2/' is not an http(s) URL
-  version: '33 beta' is not a valid version
-  output: 'no_such_folder/graph.png': folder 'no_such_folder' does not exist
-  filter: must be a single value, not a list or a mapping
+Repository error: 'examples/test_repos/bad_name.txt', line 2: 'c' is not a name of capital Latin letters
 ```
 
 ## Структура репозитория
@@ -337,11 +482,13 @@ Config error in 'examples/errors/many_errors.yaml':
 ```
 src/main.py           точка входа
 src/settings.py       чтение и проверка конфига
-src/maven.py          скачивание POM-файлов и прямые зависимости
+src/maven.py          скачивание POM-файлов и зависимости пакетов Maven
+src/local_repo.py     тестовый репозиторий из файла
+src/graph.py          граф зависимостей: обход в глубину с рекурсией
 tests/                тесты (unittest, без интернета)
 scripts/              скрипты Windows для проверки
-examples/             примеры конфигов и тестовый репозиторий;
-                      errors/ — ошибки в конфиге, repo_errors/ — ошибки репозитория
+examples/             примеры конфигов; errors/ — ошибки в конфиге, repo_errors/ — ошибки репозитория,
+                      test_repos/ — файлы тестового репозитория, test_mode/ — конфиги для них
 config.yaml           конфиг по умолчанию
 requirements.txt      зависимости (PyYAML)
 run.bat, run.sh       запуск (Windows / Linux, macOS)

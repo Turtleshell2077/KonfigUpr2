@@ -1,0 +1,10 @@
+# Two cycles (B -> D -> B and F -> G -> E -> F), shared packages
+# and package H that is not reachable from A
+A: B C
+B: D
+C: D E
+D: B F
+E: F
+F: G
+G: E
+H: A

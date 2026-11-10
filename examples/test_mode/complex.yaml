@@ -1,0 +1,7 @@
+# Two cycles, shared packages, H is not reachable
+package: A
+repository: examples/test_repos/complex.txt
+test_mode: true
+version: 1.0
+output: test_graph.png
+filter: ""

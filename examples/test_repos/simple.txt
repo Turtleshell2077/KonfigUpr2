@@ -1,0 +1,6 @@
+# Diamond: B and C both depend on D, D is visited only once
+A: B C
+B: D
+C: D E
+D:
+E:

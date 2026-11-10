@@ -24,6 +24,8 @@ DEPENDENCY_TAGS = ("groupId", "artifactId", "version", "scope", "type",
                    "optional")
 COORDINATE_TAGS = ("groupId", "artifactId", "version")
 DEFAULT_SCOPE = "compile"
+TRANSITIVE_SCOPES = ("compile", "runtime")
+UNKNOWN_VERSION = "?"
 
 
 class RepositoryError(Exception):
@@ -45,10 +47,25 @@ class Dependency:
         """Имя пакета в виде groupId:artifactId."""
         return f"{self.group}:{self.artifact}"
 
+    @property
+    def node(self):
+        """Вершина графа: groupId:artifactId:версия."""
+        return f"{self.name}:{self.version or UNKNOWN_VERSION}"
+
+    @property
+    def is_transitive(self):
+        """Maven подтягивает зависимость: compile или runtime, не optional.
+
+        Зависимости test и provided нужны только при сборке самого
+        пакета, а optional нужно подключать явно, поэтому в граф
+        зависимостей они не попадают.
+        """
+        return self.scope in TRANSITIVE_SCOPES and not self.optional
+
     def __str__(self):
         """Строка для вывода: groupId:artifactId:версия (scope)."""
         scope = f"{self.scope}, optional" if self.optional else self.scope
-        return f"{self.name}:{self.version or '?'} ({scope})"
+        return f"{self.node} ({scope})"
 
 
 def download(url):
@@ -244,6 +261,20 @@ class MavenRepository:
         model = self.model(package_id, {package_id})
         return [make_dependency(raw, model["managed"])
                 for raw in model["dependencies"]]
+
+    def dependencies(self, node):
+        """Зависимости пакета «groupId:artifactId:версия» для графа.
+
+        Возвращаются только зависимости, которые Maven подтягивает
+        транзитивно (compile и runtime, не optional), в виде вершин
+        «groupId:artifactId:версия».
+        """
+        group, artifact, version = node.split(":")
+        if version == UNKNOWN_VERSION or PROPERTY.search(version):
+            raise RepositoryError(f"the version of {group}:{artifact} "
+                                  "is unknown")
+        found = self.direct_dependencies(group, artifact, version)
+        return [item.node for item in found if item.is_transitive]
 
 
 def chain_id(root):
