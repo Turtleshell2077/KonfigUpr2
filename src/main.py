@@ -1,13 +1,15 @@
 """Визуализатор графа зависимостей Maven-пакетов (вариант 14).
 
-Этап 2: по параметрам из YAML-файла скачивается описание пакета
-заданной версии из репозитория Maven, и на экран выводятся все его
-прямые зависимости.
+Этап 3: по параметрам из YAML-файла строится граф зависимостей пакета
+с учётом транзитивности (обход в глубину с рекурсией). Источник данных —
+настоящий репозиторий Maven или тестовый репозиторий из файла.
 """
 
 import argparse
 import sys
 
+from graph import GraphBuilder, graph_lines
+from local_repo import TestRepository
 from maven import MavenRepository, RepositoryError
 from settings import ConfigError, load_settings
 
@@ -33,35 +35,47 @@ def print_config_errors(error):
         print(f"  {message}", file=sys.stderr)
 
 
-def print_dependencies(settings):
-    """Скачивает описание пакета и печатает его прямые зависимости."""
-    group, artifact = settings["package"].split(":")
-    version = settings["version"]
-    repository = MavenRepository(settings["repository"])
-    dependencies = repository.direct_dependencies(group, artifact, version)
-    print(f"Direct dependencies of {group}:{artifact}:{version}:")
-    for dependency in dependencies:
-        print(f"  {dependency}")
-    if not dependencies:
-        print("  (no dependencies)")
+def open_repository(settings):
+    """Репозиторий и начальный пакет графа.
+
+    В тестовом режиме пакет — это буквы из файла (версия не нужна),
+    иначе пакет Maven вместе с версией: groupId:artifactId:версия.
+    """
+    if settings["test_mode"]:
+        repository = TestRepository.load(settings["repository"])
+        return repository, settings["package"]
+    root = f"{settings['package']}:{settings['version']}"
+    return MavenRepository(settings["repository"]), root
+
+
+def print_graph(settings):
+    """Строит граф зависимостей и печатает его."""
+    repository, root = open_repository(settings)
+    graph = GraphBuilder(repository, settings["filter"]).build(root)
+    for line in graph_lines(graph):
+        print(line)
+    sys.stdout.flush()
+    for node, error in graph.errors.items():
+        print(f"Warning: cannot get dependencies of {node}: {error}",
+              file=sys.stderr)
 
 
 def main(argv=None):
-    """Точка входа: читает конфиг и печатает прямые зависимости пакета."""
+    """Точка входа: читает конфиг, строит и печатает граф."""
     args = parse_args(argv)
     try:
         settings = load_settings(args.config)
     except ConfigError as error:
         print_config_errors(error)
         return EXIT_ERROR
-    if settings["test_mode"]:
-        print("Error: the test repository mode is not supported yet",
-              file=sys.stderr)
-        return EXIT_ERROR
     try:
-        print_dependencies(settings)
+        print_graph(settings)
     except RepositoryError as error:
         print(f"Repository error: {error}", file=sys.stderr)
+        return EXIT_ERROR
+    except RecursionError:
+        print("Error: the dependency graph is too deep for recursive DFS",
+              file=sys.stderr)
         return EXIT_ERROR
     return EXIT_OK
 

@@ -10,7 +10,7 @@ import yaml
 from settings import ConfigError, load_settings
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-TEST_REPO = str(ROOT / "examples" / "test_repo.txt")
+TEST_REPO = str(ROOT / "examples" / "test_repos" / "simple.txt")
 REAL = {"package": "org.slf4j:slf4j-api",
         "repository": "https://repo1.maven.org/maven2/",
         "test_mode": False, "version": "2.0.16",
@@ -236,8 +236,9 @@ class ExamplesTest(unittest.TestCase):
         os.chdir(ROOT)
 
     def test_good_examples(self):
-        """config.yaml и examples/*.yaml читаются без ошибок."""
-        paths = ["config.yaml", *sorted(ROOT.glob("examples/*.yaml"))]
+        """config.yaml, examples/*.yaml и test_mode/*.yaml без ошибок."""
+        paths = ["config.yaml", *sorted(ROOT.glob("examples/*.yaml")),
+                 *sorted(ROOT.glob("examples/test_mode/*.yaml"))]
         for path in paths:
             with self.subTest(path=path):
                 self.assertIn("package", load_settings(str(path)))

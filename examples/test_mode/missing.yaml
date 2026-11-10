@@ -1,0 +1,7 @@
+# Package X is not described: a warning, the graph is still built
+package: A
+repository: examples/test_repos/missing.txt
+test_mode: true
+version: 1.0
+output: test_graph.png
+filter: ""

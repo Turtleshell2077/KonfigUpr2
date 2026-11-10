@@ -1,0 +1,3 @@
+# Package names must be capital Latin letters: "c" is wrong
+A: B c
+B:
