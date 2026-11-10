@@ -1,5 +1,6 @@
 @echo off
 rem Stage 3: dependency graphs of real packages from Maven Central (needs the Internet)
+rem Since stage 5 the graph is also saved as a PNG image (needs d2 in PATH)
 cd /d "%~dp0.."
 
 echo.

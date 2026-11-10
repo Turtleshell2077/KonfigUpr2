@@ -234,10 +234,16 @@ E:
 ### Этап 5. Визуализация
 
 **Текст на языке D2.** [D2](https://d2lang.com) — язык описания диаграмм. Программа записывает граф так:
-сначала все пакеты в порядке обхода, по одному на строке, потом все рёбра в виде `"A" -> "B"` (A зависит от B).
-Имена пакетов берутся в двойные кавычки, потому что точка и двоеточие в D2 — служебные знаки (без кавычек
-`org.slf4j:slf4j-api` D2 понял бы как вложенные фигуры с подписью). Пакеты перечисляются отдельно, чтобы на
-картинке был и пакет без зависимостей. Отфильтрованных пакетов в тексте нет, а рёбра циклов — обычные рёбра.
+сначала все пакеты в порядке обхода — каждый пакет это фигура с коротким именем `n1`, `n2`, ... и подписью
+(полным именем пакета): `n1: 'A'`; потом все рёбра в виде `n1 -> n2` (пакет `n1` зависит от пакета `n2`).
+Пакеты перечисляются отдельно, чтобы на картинке был и пакет без зависимостей. Отфильтрованных пакетов в тексте
+нет, а рёбра циклов — обычные рёбра.
+
+Почему полное имя пакета не используется как имя фигуры: точка и двоеточие в именах фигур D2 — служебные знаки
+(`org.slf4j:slf4j-api` D2 понял бы как вложенные фигуры с подписью), имена вроде `TOP` или `LABEL` — ключевые
+слова D2 (на картинке они получились бы маленькими буквами), а большие и маленькие буквы в именах фигур D2
+не различает. Подпись берётся в одинарные кавычки: в них D2 ничего не подставляет (в двойных кавычках `${...}`
+было бы подстановкой переменной), а кавычка внутри записывается два раза.
 
 **Картинка PNG.** Картинку по тексту D2 рисует программа `d2` (её нужно установить, см. раздел 3). Программа
 запускает `d2 --stdout-format png - -`: текст D2 передаётся через стандартный ввод, а готовая картинка PNG
@@ -266,14 +272,14 @@ E:
 
 ```
 D2 code of the dependency graph of A:
-"A"
-"B"
-"C"
-"D"
-"A" -> "B"
-"B" -> "C"
-"C" -> "A"
-"C" -> "D"
+n1: 'A'
+n2: 'B'
+n3: 'C'
+n4: 'D'
+n1 -> n2
+n2 -> n3
+n3 -> n1
+n3 -> n4
 Packages: 4, dependencies: 4
 Cycle: A -> B -> C -> A
 PNG image saved to test_graph.png
@@ -397,8 +403,9 @@ PNG image saved to test_graph.png
 | Функция | Что делает |
 |---|---|
 | `DiagramError` | Исключение: не удалось нарисовать или сохранить картинку |
-| `quote(node)` | Имя пакета в двойных кавычках для D2 |
-| `d2_text(graph)` | Текст графа на языке D2: все пакеты, потом все рёбра |
+| `quote(node)` | Подпись пакета для D2: имя в одинарных кавычках (кавычка внутри удваивается) |
+| `shape_names(graph)` | Имена фигур D2 для пакетов: `n1`, `n2`, ... по порядку обхода |
+| `d2_text(graph)` | Текст графа на языке D2: все пакеты с подписями, потом все рёбра |
 | `render_png(text)` | Запускает программу `d2`, возвращает картинку PNG (байты) |
 | `save_png(text, path)` | Рисует картинку по тексту D2 и сохраняет её в файл |
 
@@ -443,8 +450,8 @@ d2 --version
 Запуск на Linux/macOS: `sh run.sh [параметры]`. Или напрямую: `python src/main.py [параметры]`.
 
 Тесты (из папки проекта). Интернет и программа `d2` для них не нужны: вместо настоящего репозитория тесты
-подставляют свои POM-файлы, а вместо запуска `d2` — готовый ответ. Один тест проверяет, что настоящая `d2`
-понимает текст программы; он запускается, только если `d2` есть в `PATH`.
+подставляют свои POM-файлы, а вместо запуска `d2` — готовый ответ. Два теста проверяют, что настоящая `d2`
+понимает текст программы и не меняет подписи; они запускаются, только если `d2` есть в `PATH`.
 
 ```
 python -m unittest -v
@@ -459,7 +466,9 @@ python -m unittest -v
 | `tests/test_diagram.py` | Этап 5: текст D2, запуск `d2`, сохранение PNG |
 | `tests/test_main.py` | Программа целиком: вывод, картинка, коды завершения |
 
-Скрипты для проверки (папка `scripts/`) запускают программу с разными конфигами и печатают код завершения:
+Скрипты для проверки (папка `scripts/`) запускают программу с разными конфигами и печатают код завершения.
+С этапа 5 программа после графа сохраняет картинку, поэтому для скриптов, где граф строится, нужна `d2` в `PATH`
+(иначе в конце будет `Image error` и код 1):
 
 | Скрипт | Этап | Что проверяет |
 |---|---|---|
@@ -728,29 +737,30 @@ Cycle: F <- E <- G <- F
 сохраняются в файлы из параметра `output`.
 
 **1. spring-context 6.1.12** (`.\run.bat --config examples/spring.yaml`, картинка `spring.png`). На картинке
-spring-context наверху, spring-jcl внизу; в spring-core входят четыре стрелки:
+spring-context наверху, spring-jcl внизу; в spring-core (`n4`) входят четыре стрелки — от `n1`, `n2`, `n3`
+и `n6`:
 
 ```
 D2 code of the dependency graph of org.springframework:spring-context:6.1.12:
-"org.springframework:spring-context:6.1.12"
-"org.springframework:spring-aop:6.1.12"
-"org.springframework:spring-beans:6.1.12"
-"org.springframework:spring-core:6.1.12"
-"org.springframework:spring-jcl:6.1.12"
-"org.springframework:spring-expression:6.1.12"
-"io.micrometer:micrometer-observation:1.12.9"
-"io.micrometer:micrometer-commons:1.12.9"
-"org.springframework:spring-context:6.1.12" -> "org.springframework:spring-aop:6.1.12"
-"org.springframework:spring-context:6.1.12" -> "org.springframework:spring-beans:6.1.12"
-"org.springframework:spring-context:6.1.12" -> "org.springframework:spring-core:6.1.12"
-"org.springframework:spring-context:6.1.12" -> "org.springframework:spring-expression:6.1.12"
-"org.springframework:spring-context:6.1.12" -> "io.micrometer:micrometer-observation:1.12.9"
-"org.springframework:spring-aop:6.1.12" -> "org.springframework:spring-beans:6.1.12"
-"org.springframework:spring-aop:6.1.12" -> "org.springframework:spring-core:6.1.12"
-"org.springframework:spring-beans:6.1.12" -> "org.springframework:spring-core:6.1.12"
-"org.springframework:spring-core:6.1.12" -> "org.springframework:spring-jcl:6.1.12"
-"org.springframework:spring-expression:6.1.12" -> "org.springframework:spring-core:6.1.12"
-"io.micrometer:micrometer-observation:1.12.9" -> "io.micrometer:micrometer-commons:1.12.9"
+n1: 'org.springframework:spring-context:6.1.12'
+n2: 'org.springframework:spring-aop:6.1.12'
+n3: 'org.springframework:spring-beans:6.1.12'
+n4: 'org.springframework:spring-core:6.1.12'
+n5: 'org.springframework:spring-jcl:6.1.12'
+n6: 'org.springframework:spring-expression:6.1.12'
+n7: 'io.micrometer:micrometer-observation:1.12.9'
+n8: 'io.micrometer:micrometer-commons:1.12.9'
+n1 -> n2
+n1 -> n3
+n1 -> n4
+n1 -> n6
+n1 -> n7
+n2 -> n3
+n2 -> n4
+n3 -> n4
+n4 -> n5
+n6 -> n4
+n7 -> n8
 Packages: 8, dependencies: 11
 Cycles: none
 PNG image saved to spring.png
@@ -758,37 +768,39 @@ PNG image saved to spring.png
 
 **2. okhttp 4.12.0** (`.\run.bat --config examples/okhttp.yaml`, картинка `okhttp.png`). okhttp сам зависит
 от `kotlin-stdlib-jdk8:1.8.21`, а его зависимость okio-jvm — от `kotlin-stdlib-jdk8:1.9.10`. Поэтому в графе
-две версии каждого пакета Kotlin, а `org.jetbrains:annotations:13.0` нужен обеим версиям `kotlin-stdlib`:
+две версии каждого пакета Kotlin, а `org.jetbrains:annotations:13.0` (`n7`) нужен обеим версиям
+`kotlin-stdlib`. На картинке это две ветки: версии 1.9.10 (`n4`, `n5`, `n6`, `n8`) под okio-jvm и версии
+1.8.21 (`n9`–`n12`) под okhttp:
 
 ```
 D2 code of the dependency graph of com.squareup.okhttp3:okhttp:4.12.0:
-"com.squareup.okhttp3:okhttp:4.12.0"
-"com.squareup.okio:okio:3.6.0"
-"com.squareup.okio:okio-jvm:3.6.0"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10"
-"org.jetbrains.kotlin:kotlin-stdlib:1.9.10"
-"org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
-"org.jetbrains:annotations:13.0"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
-"org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
-"org.jetbrains.kotlin:kotlin-stdlib-common:1.8.21"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
-"com.squareup.okhttp3:okhttp:4.12.0" -> "com.squareup.okio:okio:3.6.0"
-"com.squareup.okhttp3:okhttp:4.12.0" -> "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
-"com.squareup.okio:okio:3.6.0" -> "com.squareup.okio:okio-jvm:3.6.0"
-"com.squareup.okio:okio-jvm:3.6.0" -> "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10"
-"com.squareup.okio:okio-jvm:3.6.0" -> "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10" -> "org.jetbrains.kotlin:kotlin-stdlib:1.9.10"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10" -> "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10"
-"org.jetbrains.kotlin:kotlin-stdlib:1.9.10" -> "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
-"org.jetbrains.kotlin:kotlin-stdlib:1.9.10" -> "org.jetbrains:annotations:13.0"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10" -> "org.jetbrains.kotlin:kotlin-stdlib:1.9.10"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21" -> "org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21" -> "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
-"org.jetbrains.kotlin:kotlin-stdlib:1.8.21" -> "org.jetbrains.kotlin:kotlin-stdlib-common:1.8.21"
-"org.jetbrains.kotlin:kotlin-stdlib:1.8.21" -> "org.jetbrains:annotations:13.0"
-"org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21" -> "org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
+n1: 'com.squareup.okhttp3:okhttp:4.12.0'
+n2: 'com.squareup.okio:okio:3.6.0'
+n3: 'com.squareup.okio:okio-jvm:3.6.0'
+n4: 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.10'
+n5: 'org.jetbrains.kotlin:kotlin-stdlib:1.9.10'
+n6: 'org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10'
+n7: 'org.jetbrains:annotations:13.0'
+n8: 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.10'
+n9: 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21'
+n10: 'org.jetbrains.kotlin:kotlin-stdlib:1.8.21'
+n11: 'org.jetbrains.kotlin:kotlin-stdlib-common:1.8.21'
+n12: 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21'
+n1 -> n2
+n1 -> n9
+n2 -> n3
+n3 -> n4
+n3 -> n6
+n4 -> n5
+n4 -> n8
+n5 -> n6
+n5 -> n7
+n8 -> n5
+n9 -> n10
+n9 -> n12
+n10 -> n11
+n10 -> n7
+n12 -> n10
 Packages: 12, dependencies: 15
 Cycles: none
 PNG image saved to okhttp.png
@@ -799,15 +811,15 @@ PNG image saved to okhttp.png
 
 ```
 D2 code of the dependency graph of com.google.guava:guava:33.3.1-jre:
-"com.google.guava:guava:33.3.1-jre"
-"com.google.guava:failureaccess:1.0.2"
-"com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava"
-"com.google.code.findbugs:jsr305:3.0.2"
-"org.checkerframework:checker-qual:3.43.0"
-"com.google.guava:guava:33.3.1-jre" -> "com.google.guava:failureaccess:1.0.2"
-"com.google.guava:guava:33.3.1-jre" -> "com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava"
-"com.google.guava:guava:33.3.1-jre" -> "com.google.code.findbugs:jsr305:3.0.2"
-"com.google.guava:guava:33.3.1-jre" -> "org.checkerframework:checker-qual:3.43.0"
+n1: 'com.google.guava:guava:33.3.1-jre'
+n2: 'com.google.guava:failureaccess:1.0.2'
+n3: 'com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava'
+n4: 'com.google.code.findbugs:jsr305:3.0.2'
+n5: 'org.checkerframework:checker-qual:3.43.0'
+n1 -> n2
+n1 -> n3
+n1 -> n4
+n1 -> n5
 Packages: 5, dependencies: 4
 Skipped by filter 'annotations':
   com.google.errorprone:error_prone_annotations:2.28.0

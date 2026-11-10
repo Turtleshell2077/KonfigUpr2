@@ -1,5 +1,6 @@
 @echo off
 rem Stage 3: dependency graph from test repository files (examples/test_repos/)
+rem Since stage 5 the graph is also saved as a PNG image (needs d2 in PATH)
 cd /d "%~dp0.."
 
 echo.
