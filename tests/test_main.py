@@ -91,14 +91,14 @@ class MavenGraphTest(unittest.TestCase):
         code, out, err, save = self.run_with({TEXT_POM: TEXT_XML,
                                               LANG_POM: "<project/>"})
         self.assertEqual(code, EXIT_OK, err)
-        edge = f'"{TEXT_NODE}" -> "{LANG_NODE}"'
         self.assertEqual(out.splitlines(), [
             f"D2 code of the dependency graph of {TEXT_NODE}:",
-            f'"{TEXT_NODE}"', f'"{LANG_NODE}"', edge,
+            f"n1: '{TEXT_NODE}'", f"n2: '{LANG_NODE}'", "n1 -> n2",
             "Packages: 2, dependencies: 1", "Cycles: none",
             "PNG image saved to graph.png"])
         save.assert_called_once_with(
-            f'"{TEXT_NODE}"\n"{LANG_NODE}"\n{edge}\n', "graph.png")
+            f"n1: '{TEXT_NODE}'\nn2: '{LANG_NODE}'\nn1 -> n2\n",
+            "graph.png")
 
     def test_dependency_not_found(self):
         """Нет POM зависимости: предупреждение, граф напечатан."""
@@ -127,8 +127,9 @@ class TestModeTest(unittest.TestCase):
             "-c", "examples/test_mode/cycle.yaml")
         self.assertEqual(code, EXIT_OK, err)
         self.assertEqual(out.splitlines(), [
-            "D2 code of the dependency graph of A:", '"A"', '"B"', '"C"',
-            '"D"', '"A" -> "B"', '"B" -> "C"', '"C" -> "A"', '"C" -> "D"',
+            "D2 code of the dependency graph of A:", "n1: 'A'", "n2: 'B'",
+            "n3: 'C'", "n4: 'D'", "n1 -> n2", "n2 -> n3", "n3 -> n1",
+            "n3 -> n4",
             "Packages: 4, dependencies: 4", "Cycle: A -> B -> C -> A",
             "PNG image saved to test_graph.png"])
         self.assertEqual(save.call_args.args[1], "test_graph.png")
@@ -137,7 +138,7 @@ class TestModeTest(unittest.TestCase):
         """Фильтр из конфига: пакета D нет в тексте D2."""
         _, out, _, save = run_drawn("-c", "examples/test_mode/filter.yaml")
         self.assertIn("Skipped by filter 'D':\n  D\n", out)
-        self.assertNotIn('"D"', save.call_args.args[0])
+        self.assertNotIn("'D'", save.call_args.args[0])
 
     def test_errors(self):
         """Нет начального пакета или ошибка в файле: код 1."""
@@ -202,7 +203,7 @@ class ImageTest(unittest.TestCase):
                             side_effect=FileNotFoundError):
                 code, out, err = run_main("-c", config)
         self.assertEqual(code, EXIT_ERROR)
-        self.assertIn('"A" -> "B"', out)
+        self.assertIn("n1 -> n2", out)
         self.assertIn("Image error: the d2 program is not found", err)
 
 

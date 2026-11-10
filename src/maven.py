@@ -26,6 +26,10 @@ COORDINATE_TAGS = ("groupId", "artifactId", "version")
 DEFAULT_SCOPE = "compile"
 TRANSITIVE_SCOPES = ("compile", "runtime")
 UNKNOWN_VERSION = "?"
+POM_ROOT = "project"
+BOM_TYPE = "pom"
+BOM_SCOPE = "import"
+TRUE_TEXT = "true"
 
 
 class RepositoryError(Exception):
@@ -91,7 +95,7 @@ def parse_pom(data, url):
         raise RepositoryError(f"invalid XML in {url}: {error}")
     for element in root.iter():
         element.tag = element.tag.rsplit("}", 1)[-1]
-    if root.tag != "project":
+    if root.tag != POM_ROOT:
         raise RepositoryError(f"not a POM file (no <project>): {url}")
     return root
 
@@ -164,7 +168,8 @@ def dependency_name(dependency):
 
 def is_bom_import(dependency):
     """Импорт BOM: <type>pom</type> и <scope>import</scope>."""
-    return dependency["type"] == "pom" and dependency["scope"] == "import"
+    return (dependency["type"] == BOM_TYPE
+            and dependency["scope"] == BOM_SCOPE)
 
 
 def make_dependency(raw, managed):
@@ -174,7 +179,7 @@ def make_dependency(raw, managed):
         group=raw["groupId"], artifact=raw["artifactId"],
         version=raw["version"] or rule.get("version"),
         scope=raw["scope"] or rule.get("scope") or DEFAULT_SCOPE,
-        optional=(raw["optional"] or "").lower() == "true")
+        optional=(raw["optional"] or "").lower() == TRUE_TEXT)
 
 
 class MavenRepository:
