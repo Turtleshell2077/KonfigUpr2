@@ -41,26 +41,6 @@ class TestRepository:
                                   f"'{self.path}'")
         return list(self.packages[node])
 
-    def names(self):
-        """Все пакеты файла: описанные и упомянутые как зависимости."""
-        found = dict.fromkeys(self.packages)
-        for dependencies in self.packages.values():
-            found.update(dict.fromkeys(dependencies))
-        return list(found)
-
-    def reversed(self):
-        """Обратный репозиторий: рёбра графа развёрнуты.
-
-        Если A зависит от B, то в обратном репозитории у B «зависимость»
-        A. Обход такого графа от пакета находит все пакеты, которые
-        зависят от него (напрямую или через другие пакеты).
-        """
-        reverse = {name: [] for name in self.names()}
-        for name, dependencies in self.packages.items():
-            for dependency in dependencies:
-                reverse[dependency].append(name)
-        return TestRepository(self.path, reverse)
-
 
 def parse_line(text, where):
     """Разбирает строку «A: B C» в пару ("A", ["B", "C"])."""

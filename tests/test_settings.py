@@ -13,13 +13,13 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 TEST_REPO = str(ROOT / "examples" / "test_repos" / "simple.txt")
 REAL = {"package": "org.slf4j:slf4j-api",
         "repository": "https://repo1.maven.org/maven2/",
-        "test_mode": False, "reverse_mode": False, "version": "2.0.16",
+        "test_mode": False, "version": "2.0.16",
         "output": "graph.png", "filter": ""}
 TEST = {**REAL, "package": "A", "repository": TEST_REPO, "test_mode": True,
         "version": "1.0"}
 TEXT = ("package: org.slf4j:slf4j-api\n"
         "repository: https://repo1.maven.org/maven2/\n"
-        "reverse_mode: false\noutput: graph.png\n")
+        "output: graph.png\n")
 
 
 class ConfigTestCase(unittest.TestCase):
@@ -192,20 +192,6 @@ class ParameterErrorTest(ConfigTestCase):
                 self.assert_error({**REAL, "test_mode": value},
                                   "test_mode", "must be true or false")
 
-    def test_reverse_mode(self):
-        """Режим обратных зависимостей: только true или false."""
-        for value in ("maybe", "1", ""):
-            with self.subTest(value=value):
-                self.assert_error({**TEST, "reverse_mode": value},
-                                  "reverse_mode", "must be true or false")
-        settings = self.load({**TEST, "reverse_mode": "True"})
-        self.assertIs(settings["reverse_mode"], True)
-
-    def test_reverse_mode_only_for_test_repository(self):
-        """В репозитории Maven нет списка зависящих пакетов."""
-        self.assert_error({**REAL, "reverse_mode": True}, "reverse_mode",
-                          "works only with the test repository")
-
     def test_bad_test_mode_skips_other_checks(self):
         """Без верного режима не ясно, как проверять пакет и репозиторий."""
         data = {**REAL, "package": "x", "repository": "y",
@@ -250,10 +236,9 @@ class ExamplesTest(unittest.TestCase):
         os.chdir(ROOT)
 
     def test_good_examples(self):
-        """config.yaml и конфиги из examples/ (кроме ошибок) без ошибок."""
+        """config.yaml, examples/*.yaml и test_mode/*.yaml без ошибок."""
         paths = ["config.yaml", *sorted(ROOT.glob("examples/*.yaml")),
-                 *sorted(ROOT.glob("examples/test_mode/*.yaml")),
-                 *sorted(ROOT.glob("examples/reverse/*.yaml"))]
+                 *sorted(ROOT.glob("examples/test_mode/*.yaml"))]
         for path in paths:
             with self.subTest(path=path):
                 self.assertIn("package", load_settings(str(path)))

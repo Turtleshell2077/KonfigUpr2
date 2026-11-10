@@ -1,8 +1,0 @@
-# X is not described in the file, but A depends on it
-package: X
-repository: examples/test_repos/missing.txt
-test_mode: true
-reverse_mode: true
-version: 1.0
-output: test_graph.png
-filter: ""

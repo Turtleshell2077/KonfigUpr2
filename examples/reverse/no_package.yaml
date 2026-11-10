@@ -1,8 +1,0 @@
-# Package Z is not in the file at all (error)
-package: Z
-repository: examples/test_repos/simple.txt
-test_mode: true
-reverse_mode: true
-version: 1.0
-output: test_graph.png
-filter: ""

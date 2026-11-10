@@ -2,7 +2,7 @@
 
 import unittest
 
-from graph import GraphBuilder, dependents, graph_lines, package_name
+from graph import GraphBuilder, package_name, summary_lines
 from local_repo import TestRepository
 from maven import RepositoryError
 
@@ -173,76 +173,19 @@ class ErrorTest(unittest.TestCase):
             build({"A": ""}, root="Z")
 
 
-class ReverseTest(unittest.TestCase):
-    """Обратные зависимости: тот же DFS по развёрнутым рёбрам (этап 4)."""
+class SummaryTest(unittest.TestCase):
+    """Итог обхода, который печатается после текста D2."""
 
-    def reverse(self, packages, root, text_filter=""):
-        """Строит обратный граф: кто зависит от пакета root."""
-        repository = repo(packages).reversed()
-        return GraphBuilder(repository, text_filter).build(root)
-
-    def test_direct_and_transitive(self):
-        """От D зависят B и C напрямую и A через них."""
-        graph = self.reverse({"A": "B C", "B": "D", "C": "D E", "D": "",
-                              "E": ""}, "D")
-        self.assertEqual(graph.edges, {"D": ["B", "C"], "B": ["A"],
-                                       "A": [], "C": ["A"]})
-        self.assertEqual(dependents(graph), ["B", "A", "C"])
-
-    def test_nobody(self):
-        """От верхнего пакета никто не зависит."""
-        graph = self.reverse({"A": "B", "B": ""}, "A")
-        self.assertEqual(dependents(graph), [])
-
-    def test_not_reachable_forward(self):
-        """H недостижим из A, но H зависит от F (через A)."""
-        graph = self.reverse(COMPLEX, "F")
-        self.assertEqual(sorted(dependents(graph)), list("ABCDEFGH"))
-
-    def test_filter(self):
-        """Фильтр: B зависит от F только через D, поэтому не найден."""
-        graph = self.reverse(COMPLEX, "F", text_filter="D")
-        self.assertEqual(graph.skipped, ["D"])
-        self.assertNotIn("B", dependents(graph))
-        self.assertIn("A", dependents(graph))
-
-    def test_cycle_and_self_loop(self):
-        """Пакет в цикле зависит сам от себя."""
-        graph = self.reverse({"A": "B", "B": "C", "C": "A"}, "A")
-        self.assertEqual(dependents(graph), ["C", "B", "A"])
-        self.assertEqual(graph.cycles, [["A", "C", "B", "A"]])
-        graph = self.reverse({"A": "A B", "B": ""}, "B")
-        self.assertEqual(dependents(graph), ["A"])
-
-    def test_lines(self):
-        """Вывод: заголовок, стрелки <- и список зависящих пакетов."""
-        graph = self.reverse({"A": "B", "B": "C", "C": "A"}, "A")
-        self.assertEqual(graph_lines(graph, reverse=True), [
-            "Reverse dependencies of A:", "  1. A", "       <- C",
-            "  2. C", "       <- B", "  3. B", "       <- A",
-            "Packages that depend on A: C, B, A",
-            "Cycle: A <- C <- B <- A"])
-        graph = self.reverse({"A": ""}, "A")
-        self.assertIn("Packages that depend on A: (none)",
-                      graph_lines(graph, reverse=True))
-
-
-class LinesTest(unittest.TestCase):
-    """Вывод графа на экран."""
-
-    def test_lines(self):
-        """Пакеты по порядку обхода, под ними рёбра, итог и циклы."""
+    def test_summary(self):
+        """Число пакетов и рёбер, найденный цикл."""
         graph = build({"A": "B C", "B": "C", "C": "B"})
-        self.assertEqual(graph_lines(graph), [
-            "Dependency graph of A:", "  1. A", "       -> B",
-            "       -> C", "  2. B", "       -> C", "  3. C",
-            "       -> B", "Packages: 3, dependencies: 4",
-            "Cycle: B -> C -> B"])
+        self.assertEqual(summary_lines(graph), [
+            "Packages: 3, dependencies: 4", "Cycle: B -> C -> B"])
 
-    def test_lines_with_filter(self):
+    def test_summary_with_filter(self):
         """Отфильтрованные пакеты и «Cycles: none»."""
         graph = build({"A": "B C", "B": "", "C": ""}, text_filter="C")
-        self.assertEqual(graph_lines(graph)[-4:], [
+        self.assertEqual(summary_lines(graph), [
             "Packages: 2, dependencies: 1", "Skipped by filter 'C':",
             "  C", "Cycles: none"])
 

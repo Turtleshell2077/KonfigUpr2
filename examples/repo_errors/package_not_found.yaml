@@ -2,7 +2,6 @@
 package: org.example:no-such-package
 repository: https://repo1.maven.org/maven2/
 test_mode: false
-reverse_mode: false
 version: 1.0
 output: graph.png
 filter: ""
