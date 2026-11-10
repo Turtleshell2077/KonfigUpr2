@@ -145,11 +145,45 @@ class TestModeTest(unittest.TestCase):
             config = pathlib.Path(folder) / "config.yaml"
             config.write_text(
                 f"package: {names[0]}\nrepository: {repo}\n"
-                "test_mode: true\nversion: 1.0\noutput: graph.png\n"
+                "test_mode: true\nreverse_mode: false\nversion: 1.0\n"
+                "output: graph.png\n"
                 "filter: ''\n", encoding="utf-8")
             code, _, err = run_main("--config", str(config))
         self.assertEqual(code, EXIT_ERROR)
         self.assertIn("too deep for recursive DFS", err)
+
+
+class ReverseModeTest(unittest.TestCase):
+    """Режим обратных зависимостей (этап 4)."""
+
+    def test_reverse(self):
+        """Кто зависит от D: B и C напрямую, A через них."""
+        result = start_program("-c", "examples/reverse/simple.yaml")
+        self.assertEqual(result.returncode, EXIT_OK, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            "Reverse dependencies of D:", "  1. D", "       <- B",
+            "       <- C", "  2. B", "       <- A", "  3. A", "  4. C",
+            "       <- A", "Packages that depend on D: B, A, C",
+            "Cycles: none"])
+
+    def test_reverse_with_filter(self):
+        """Фильтр работает и в обратном режиме."""
+        result = start_program("-c", "examples/reverse/filter.yaml")
+        self.assertIn("Packages that depend on D: C, A\n", result.stdout)
+        self.assertIn("Skipped by filter 'B':\n  B\n", result.stdout)
+
+    def test_unknown_package(self):
+        """Пакета нет в файле: код 1."""
+        result = start_program("-c", "examples/reverse/no_package.yaml")
+        self.assertEqual(result.returncode, EXIT_ERROR)
+        self.assertIn("package 'Z' not found", result.stderr)
+
+    def test_real_repository(self):
+        """Для настоящего репозитория обратный режим — ошибка конфига."""
+        result = start_program("-c", "examples/errors/reverse_real.yaml")
+        self.assertEqual(result.returncode, EXIT_ERROR)
+        self.assertIn("reverse_mode: works only with the test repository",
+                      result.stderr)
 
 
 class ProgramTest(unittest.TestCase):

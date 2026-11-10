@@ -9,7 +9,9 @@ try:
 except ImportError:
     yaml = None
 
-KEYS = ("package", "repository", "test_mode", "version", "output", "filter")
+KEYS = ("package", "repository", "test_mode", "reverse_mode", "version",
+        "output", "filter")
+FLAGS = ("test_mode", "reverse_mode")
 NAME_PART = r"[A-Za-z0-9_.-]+"
 MAVEN_NAME = re.compile(rf"{NAME_PART}:{NAME_PART}")
 TEST_NAME = re.compile(r"[A-Z]+")
@@ -70,8 +72,8 @@ def text_error(value):
     return None
 
 
-def check_test_mode(value):
-    """Режим работы с тестовым репозиторием: true или false."""
+def check_flag(value):
+    """Режим (test_mode, reverse_mode): только true или false."""
     if parse_bool(value) is None:
         return f"'{value}': must be true or false"
     return None
@@ -153,9 +155,12 @@ def find_errors(data):
 
     Имя пакета и репозиторий проверяются по-разному в зависимости
     от режима, поэтому без верного test_mode они не проверяются.
+    Обратные зависимости можно искать только в тестовом репозитории:
+    в репозитории Maven нет списка пакетов, которые зависят от пакета.
     """
-    checks = {"test_mode": check_test_mode, "version": check_version,
-              "output": check_output, "filter": check_filter}
+    checks = {"test_mode": check_flag, "reverse_mode": check_flag,
+              "version": check_version, "output": check_output,
+              "filter": check_filter}
     errors = {key: check(data[key]) for key, check in checks.items()
               if key in data}
     test_mode = parse_bool(data.get("test_mode"))
@@ -164,6 +169,9 @@ def find_errors(data):
                            ("repository", check_repository)):
             if key in data:
                 errors[key] = check(data[key], test_mode)
+    if test_mode is False and parse_bool(data.get("reverse_mode")):
+        errors["reverse_mode"] = ("works only with the test repository "
+                                  "(test_mode: true)")
     return [f"{key}: {errors[key]}" for key in KEYS if errors.get(key)]
 
 
@@ -177,5 +185,6 @@ def load_settings(path):
     if errors:
         raise ConfigError(path, errors)
     settings = {key: data[key] for key in KEYS}
-    settings["test_mode"] = parse_bool(data["test_mode"])
+    for key in FLAGS:
+        settings[key] = parse_bool(data[key])
     return settings

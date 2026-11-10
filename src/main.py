@@ -1,8 +1,12 @@
 """Визуализатор графа зависимостей Maven-пакетов (вариант 14).
 
-Этап 3: по параметрам из YAML-файла строится граф зависимостей пакета
-с учётом транзитивности (обход в глубину с рекурсией). Источник данных —
+По параметрам из YAML-файла строится граф зависимостей пакета с учётом
+транзитивности (обход в глубину с рекурсией, этап 3). Источник данных —
 настоящий репозиторий Maven или тестовый репозиторий из файла.
+
+Этап 4: режим обратных зависимостей (reverse_mode) — тот же обход по
+развёрнутым рёбрам тестового репозитория находит пакеты, которые
+зависят от заданного.
 """
 
 import argparse
@@ -39,10 +43,13 @@ def open_repository(settings):
     """Репозиторий и начальный пакет графа.
 
     В тестовом режиме пакет — это буквы из файла (версия не нужна),
-    иначе пакет Maven вместе с версией: groupId:artifactId:версия.
+    а в режиме обратных зависимостей рёбра графа разворачиваются.
+    Иначе пакет Maven вместе с версией: groupId:artifactId:версия.
     """
     if settings["test_mode"]:
         repository = TestRepository.load(settings["repository"])
+        if settings["reverse_mode"]:
+            repository = repository.reversed()
         return repository, settings["package"]
     root = f"{settings['package']}:{settings['version']}"
     return MavenRepository(settings["repository"]), root
@@ -52,7 +59,7 @@ def print_graph(settings):
     """Строит граф зависимостей и печатает его."""
     repository, root = open_repository(settings)
     graph = GraphBuilder(repository, settings["filter"]).build(root)
-    for line in graph_lines(graph):
+    for line in graph_lines(graph, settings["reverse_mode"]):
         print(line)
     sys.stdout.flush()
     for node, error in graph.errors.items():

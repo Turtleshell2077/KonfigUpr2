@@ -1,0 +1,8 @@
+# Filter D: B depends on F only through D, so B is not found; A is found through C
+package: F
+repository: examples/test_repos/complex.txt
+test_mode: true
+reverse_mode: true
+version: 1.0
+output: test_graph.png
+filter: "D"
