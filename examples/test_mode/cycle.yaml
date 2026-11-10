@@ -2,6 +2,7 @@
 package: A
 repository: examples/test_repos/cycle.txt
 test_mode: true
+reverse_mode: false
 version: 1.0
 output: test_graph.png
 filter: ""

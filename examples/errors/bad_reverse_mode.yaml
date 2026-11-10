@@ -1,0 +1,8 @@
+# reverse_mode must be true or false
+package: A
+repository: examples/test_repos/simple.txt
+test_mode: true
+reverse_mode: maybe
+version: 1.0
+output: graph.png
+filter: ""

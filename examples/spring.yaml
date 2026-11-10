@@ -2,6 +2,7 @@
 package: org.springframework:spring-context
 repository: https://repo1.maven.org/maven2/
 test_mode: false
+reverse_mode: false
 version: 6.1.12
 output: spring.png
 filter: ""

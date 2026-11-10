@@ -23,7 +23,7 @@ call .\run.bat --config examples/errors/unknown_key.yaml
 echo [exit code: %ERRORLEVEL%]
 
 echo.
-echo ===== four parameters are missing (missing_keys.yaml)
+echo ===== five parameters are missing (missing_keys.yaml)
 call .\run.bat --config examples/errors/missing_keys.yaml
 echo [exit code: %ERRORLEVEL%]
 
@@ -50,6 +50,16 @@ echo [exit code: %ERRORLEVEL%]
 echo.
 echo ===== test_mode is not true or false (bad_test_mode.yaml)
 call .\run.bat --config examples/errors/bad_test_mode.yaml
+echo [exit code: %ERRORLEVEL%]
+
+echo.
+echo ===== reverse_mode is not true or false (bad_reverse_mode.yaml)
+call .\run.bat --config examples/errors/bad_reverse_mode.yaml
+echo [exit code: %ERRORLEVEL%]
+
+echo.
+echo ===== reverse_mode with a real repository (reverse_real.yaml)
+call .\run.bat --config examples/errors/reverse_real.yaml
 echo [exit code: %ERRORLEVEL%]
 
 echo.

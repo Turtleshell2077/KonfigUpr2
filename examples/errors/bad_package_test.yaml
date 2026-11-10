@@ -2,6 +2,7 @@
 package: a1
 repository: examples/test_repos/simple.txt
 test_mode: true
+reverse_mode: false
 version: 1.0
 output: graph.png
 filter: ""

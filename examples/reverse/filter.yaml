@@ -1,0 +1,8 @@
+# Filter B: A is still found, but only through C
+package: D
+repository: examples/test_repos/simple.txt
+test_mode: true
+reverse_mode: true
+version: 1.0
+output: test_graph.png
+filter: "B"

@@ -1,0 +1,8 @@
+# H is not reachable from A, but H depends on F
+package: F
+repository: examples/test_repos/complex.txt
+test_mode: true
+reverse_mode: true
+version: 1.0
+output: test_graph.png
+filter: ""

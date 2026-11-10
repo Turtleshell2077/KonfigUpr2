@@ -2,6 +2,7 @@
 package: org.apache.commons:commons-text
 repository: https://no-such-host.invalid/maven2/
 test_mode: false
+reverse_mode: false
 version: 1.12.0
 output: graph.png
 filter: ""

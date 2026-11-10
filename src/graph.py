@@ -7,12 +7,16 @@
 а найденные циклы запоминаются.
 
 Репозиторий — любой объект с методом dependencies(пакет), который
-возвращает список пакетов или бросает RepositoryError.
+возвращает список пакетов или бросает RepositoryError. Если дать
+обходу репозиторий с развёрнутыми рёбрами, тот же алгоритм находит
+обратные зависимости: пакеты, которые зависят от заданного.
 """
 
 from maven import RepositoryError
 
 NAME_PARTS = 2
+FORWARD = ("Dependency graph of", "->")
+REVERSE = ("Reverse dependencies of", "<-")
 
 
 def package_name(node):
@@ -100,24 +104,46 @@ class GraphBuilder:
         self.path.pop()
 
 
-def graph_lines(graph):
+def dependents(graph):
+    """Пакеты, которые зависят от начального (для обратного графа).
+
+    Это все посещённые пакеты, кроме начального. Сам начальный пакет
+    добавляется, только если он зависит от себя (через цикл).
+    """
+    found = [node for node in graph.edges if node != graph.root]
+    if any(graph.root in children for children in graph.edges.values()):
+        found.append(graph.root)
+    return found
+
+
+def summary_line(graph, reverse):
+    """Итог: число пакетов и рёбер или список зависящих пакетов."""
+    if not reverse:
+        return (f"Packages: {len(graph.edges)}, "
+                f"dependencies: {graph.edge_count()}")
+    found = ", ".join(dependents(graph)) or "(none)"
+    return f"Packages that depend on {graph.root}: {found}"
+
+
+def graph_lines(graph, reverse=False):
     """Строки для вывода графа.
 
     Пакеты пронумерованы в порядке обхода в глубину, под каждым —
-    его зависимости (рёбра графа), по одной на строке.
+    его рёбра, по одной на строке: «-> B» — пакет зависит от B,
+    «<- B» (обратный режим) — B зависит от пакета.
     """
-    lines = [f"Dependency graph of {graph.root}:"]
+    title, arrow = REVERSE if reverse else FORWARD
+    lines = [f"{title} {graph.root}:"]
     for number, (node, children) in enumerate(graph.edges.items(),
                                               start=1):
         lines.append(f"  {number}. {node}")
-        lines.extend(f"       -> {child}" for child in children)
-    lines.append(f"Packages: {len(graph.edges)}, "
-                 f"dependencies: {graph.edge_count()}")
+        lines.extend(f"       {arrow} {child}" for child in children)
+    lines.append(summary_line(graph, reverse))
     if graph.skipped:
         lines.append(f"Skipped by filter '{graph.text_filter}':")
         lines.extend(f"  {node}" for node in graph.skipped)
     for cycle in graph.cycles:
-        lines.append("Cycle: " + " -> ".join(cycle))
+        lines.append("Cycle: " + f" {arrow} ".join(cycle))
     if not graph.cycles:
         lines.append("Cycles: none")
     return lines
