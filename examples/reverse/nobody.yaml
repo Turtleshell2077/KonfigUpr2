@@ -1,8 +1,0 @@
-# Nobody depends on A (it is the top of the graph)
-package: A
-repository: examples/test_repos/simple.txt
-test_mode: true
-reverse_mode: true
-version: 1.0
-output: test_graph.png
-filter: ""

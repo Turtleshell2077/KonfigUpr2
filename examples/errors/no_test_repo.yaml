@@ -2,7 +2,6 @@
 package: A
 repository: examples/no_such_repo.txt
 test_mode: true
-reverse_mode: false
 version: 1.0
 output: graph.png
 filter: ""

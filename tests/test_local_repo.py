@@ -53,25 +53,6 @@ class LoadTest(unittest.TestCase):
         repository.dependencies("A").append("Z")
         self.assertEqual(repository.dependencies("A"), ["B"])
 
-    def test_names(self):
-        """Все пакеты: описанные и упомянутые только как зависимости."""
-        repository = self.load("A: B X\nB: C\n")
-        self.assertEqual(repository.names(), ["A", "B", "X", "C"])
-
-    def test_reversed(self):
-        """Обратный репозиторий: у пакета — те, кто от него зависит."""
-        repository = self.load("A: B C\nB: C\nC:\nD: A\n").reversed()
-        self.assertEqual(repository.packages, {
-            "A": ["D"], "B": ["A"], "C": ["A", "B"], "D": []})
-        self.assertEqual(repository.dependencies("C"), ["A", "B"])
-
-    def test_reversed_not_described(self):
-        """Неописанный пакет X в обратном репозитории есть."""
-        repository = self.load("A: X\n").reversed()
-        self.assertEqual(repository.dependencies("X"), ["A"])
-        with self.assertRaises(RepositoryError):
-            repository.dependencies("Z")
-
     def test_missing_package(self):
         """Пакета нет в файле."""
         repository = self.load("A: B\n")
